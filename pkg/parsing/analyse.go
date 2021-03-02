@@ -138,9 +138,9 @@ func checkLinks(result *models.Result, token html.Token, inputURL url.URL) {
 				}
 
 				urlString := url.String()
-				accessible, ok := linkCache[urlString]
+				accessible, exists := linkCache[urlString]
 
-				if !ok {
+				if !exists {
 					res, err := request.Get(urlString)
 					accessible = err == nil && res.StatusCode < 400
 					linkCache[urlString] = accessible
