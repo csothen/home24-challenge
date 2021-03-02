@@ -59,4 +59,7 @@ func (pc *ParsingController) ParseWebsite(rw http.ResponseWriter, r *http.Reques
 		http.Error(rw, "Failed to encode result", 500)
 		return
 	}
+
+	v, _ := json.MarshalIndent(result, "", "    ")
+	pc.l.Printf("Sent payload\n%s", v)
 }
