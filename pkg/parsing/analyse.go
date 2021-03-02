@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/csothen/htmlparser/pkg/models"
+	"github.com/csothen/htmlparser/pkg/request"
 	"golang.org/x/net/html"
 )
 
@@ -21,10 +22,12 @@ var (
 		"XHTML 1.1":              "XHTML 1.1",
 		"XHTML BASIC 1.1":        "XHTML Basic 1.1",
 	}
+
+	linkCache map[string]bool
 )
 
 // Analyse : Parses the website and returns the analysis result
-func Analyse(page *html.Tokenizer) *models.Result {
+func Analyse(url url.URL, page *html.Tokenizer) *models.Result {
 	// Default values
 	htmlVersion := "Failed to find Doctype declaration"
 	pageTitle := "Failed to find the website's title"
@@ -35,6 +38,7 @@ func Analyse(page *html.Tokenizer) *models.Result {
 	containsLoginForm := false
 
 	depth := 0
+	linkCache = make(map[string]bool)
 
 	result := &models.Result{
 		HTMLVersion:            htmlVersion,
@@ -67,7 +71,7 @@ func Analyse(page *html.Tokenizer) *models.Result {
 
 			checkHeadings(result, token, depth)
 
-			checkLinks(result, token)
+			checkLinks(result, token, url)
 
 			checkLoginForm(result, token)
 
@@ -112,21 +116,41 @@ func checkHeadings(result *models.Result, token html.Token, depth int) {
 	}
 }
 
-func checkLinks(result *models.Result, token html.Token) {
+func checkLinks(result *models.Result, token html.Token, inputURL url.URL) {
 	if token.DataAtom.String() == "a" {
 		for _, attr := range token.Attr {
 			if attr.Key == "href" {
-				url, err := url.ParseRequestURI(attr.Val)
+				url, err := url.Parse(attr.Val)
 
 				if err != nil {
+					result.InaccessibleLinksCount++
 					continue
 				}
 
-				if url.Scheme != "" {
+				if url.Host != inputURL.Host && len(url.Host) != 0 {
 					result.ExternalLinksCount++
 				} else {
+					if len(url.Host) == 0 {
+						url.Scheme = inputURL.Scheme
+						url.Host = inputURL.Host
+					}
 					result.InternalLinksCount++
 				}
+
+				urlString := url.String()
+				accessible, ok := linkCache[urlString]
+
+				if !ok {
+					res, err := request.Get(urlString)
+					accessible = err == nil && res.StatusCode < 400
+					linkCache[urlString] = accessible
+				}
+
+				if !accessible {
+					result.InaccessibleLinksCount++
+				}
+
+				break
 			}
 		}
 	}
