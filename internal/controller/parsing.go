@@ -35,7 +35,7 @@ func (pc *ParsingController) ParseWebsite(rw http.ResponseWriter, r *http.Reques
 	}
 
 	// Validate URL
-	valid := validate.IsValidURL(input.URL)
+	url, valid := validate.IsValidURL(input.URL)
 
 	if !valid {
 		http.Error(rw, "The URL is invalid", 400)
@@ -45,7 +45,7 @@ func (pc *ParsingController) ParseWebsite(rw http.ResponseWriter, r *http.Reques
 	// Process request
 	pc.l.Println("Parsing URL", input.URL)
 
-	result, err := pc.service.Parse(input.URL)
+	result, err := pc.service.Parse(*url)
 	if err != nil {
 		http.Error(rw, "Failed to parse website", 500)
 		return
