@@ -135,7 +135,7 @@ func checkLinks(result *models.Result, token html.Token) {
 func checkLoginForm(result *models.Result, token html.Token) {
 	if token.DataAtom.String() == "form" {
 		for _, attr := range token.Attr {
-			if attr.Key == "id" {
+			if attr.Key == "id" || attr.Key == "class" || attr.Key == "action" {
 				normalizedID := strings.ToLower(attr.Val)
 				if strings.Contains(normalizedID, "login") {
 					result.ContainsLoginForm = true
