@@ -29,13 +29,13 @@ func (pc *ParsingController) ParseWebsite(rw http.ResponseWriter, r *http.Reques
 	input := new(models.ParsingRequest)
 
 	d := json.NewDecoder(r.Body)
-	if err := d.Decode(input); err != nil {
+	if err := d.Decode(input); err != nil || input.URL == nil {
 		http.Error(rw, "Unable to parse request body", 400)
 		return
 	}
 
 	// Validate URL
-	url, valid := validate.IsValidURL(input.URL)
+	url, valid := validate.IsValidURL(*input.URL)
 
 	if !valid {
 		http.Error(rw, "The URL is invalid", 400)
@@ -43,7 +43,7 @@ func (pc *ParsingController) ParseWebsite(rw http.ResponseWriter, r *http.Reques
 	}
 
 	// Process request
-	pc.l.Println("Parsing URL", input.URL)
+	pc.l.Println("Parsing URL", *input.URL)
 
 	result, err := pc.service.Parse(*url)
 	if err != nil {
