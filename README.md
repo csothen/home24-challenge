@@ -47,3 +47,7 @@ curl -X POST -H "Content-Type: application/json" \
  -d '{"url": "https://facebook.com"}' \
  localhost:9090/api/parse
 ```
+
+## Improvements
+
+- Shorten response time (using a better caching technique)
