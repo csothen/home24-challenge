@@ -42,8 +42,8 @@ func configServer(router *mux.Router) *http.Server {
 		Addr:         ":9090",
 		Handler:      router,
 		ErrorLog:     logger,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 45 * time.Second,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
