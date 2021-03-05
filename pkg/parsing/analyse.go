@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/csothen/htmlparser/pkg/models"
 	"github.com/csothen/htmlparser/pkg/request"
@@ -22,8 +23,6 @@ var (
 		"XHTML 1.1":              "XHTML 1.1",
 		"XHTML BASIC 1.1":        "XHTML Basic 1.1",
 	}
-
-	linkCache map[string]bool
 )
 
 // Analyse : Parses the website and returns the analysis result
@@ -38,7 +37,11 @@ func Analyse(url url.URL, page *html.Tokenizer) *models.Result {
 	containsLoginForm := false
 
 	depth := 0
-	linkCache = make(map[string]bool)
+
+	c := make(chan bool)
+	quit := make(chan bool)
+
+	var wg sync.WaitGroup
 
 	result := &models.Result{
 		HTMLVersion:            htmlVersion,
@@ -50,33 +53,48 @@ func Analyse(url url.URL, page *html.Tokenizer) *models.Result {
 		ContainsLoginForm:      containsLoginForm,
 	}
 
-	for {
-		tokenType := page.Next()
-		if tokenType == html.ErrorToken {
-			return result
-		}
-
-		token := page.Token()
-
-		switch tokenType {
-		case html.DoctypeToken:
-			checkVersion(result, token)
-
-		case html.StartTagToken:
-			if token.DataAtom.String() != "meta" {
-				depth++
+	go func() {
+		for {
+			tokenType := page.Next()
+			if tokenType == html.ErrorToken {
+				break
 			}
 
-			checkTitle(result, token, page)
+			token := page.Token()
 
-			checkHeadings(result, token, depth)
+			switch tokenType {
+			case html.DoctypeToken:
+				checkVersion(result, token)
 
-			checkLinks(result, token, url)
+			case html.StartTagToken:
+				if token.DataAtom.String() != "meta" {
+					depth++
+				}
 
-			checkLoginForm(result, token)
+				checkTitle(result, token, page)
 
-		case html.EndTagToken:
-			depth--
+				checkHeadings(result, token, depth)
+
+				checkLinks(&wg, c, result, token, url)
+
+				checkLoginForm(result, token)
+
+			case html.EndTagToken:
+				depth--
+			}
+		}
+		wg.Wait()
+		quit <- true
+	}()
+
+	for {
+		select {
+		case accessible := <-c:
+			if !accessible {
+				result.InaccessibleLinksCount++
+			}
+		case <-quit:
+			return result
 		}
 	}
 }
@@ -116,7 +134,7 @@ func checkHeadings(result *models.Result, token html.Token, depth int) {
 	}
 }
 
-func checkLinks(result *models.Result, token html.Token, inputURL url.URL) {
+func checkLinks(wg *sync.WaitGroup, c chan bool, result *models.Result, token html.Token, inputURL url.URL) {
 	if token.DataAtom.String() == "a" {
 		for _, attr := range token.Attr {
 			if attr.Key == "href" {
@@ -138,18 +156,9 @@ func checkLinks(result *models.Result, token html.Token, inputURL url.URL) {
 				}
 
 				urlString := url.String()
-				accessible, exists := linkCache[urlString]
 
-				if !exists {
-					res, err := request.Get(urlString)
-					accessible = err == nil && res.StatusCode < 400
-					linkCache[urlString] = accessible
-				}
-
-				if !accessible {
-					result.InaccessibleLinksCount++
-				}
-
+				wg.Add(1)
+				go checkAccessibility(wg, c, urlString)
 				break
 			}
 		}
@@ -167,4 +176,11 @@ func checkLoginForm(result *models.Result, token html.Token) {
 			}
 		}
 	}
+}
+
+func checkAccessibility(wg *sync.WaitGroup, ch chan bool, urlString string) {
+	res, err := request.Get(urlString)
+	accessible := err == nil && res.StatusCode < 400
+	ch <- accessible
+	wg.Done()
 }
