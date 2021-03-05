@@ -50,4 +50,4 @@ curl -X POST -H "Content-Type: application/json" \
 
 ## Improvements
 
-- Shorten response time (using a better caching technique)
+- Shorten response time by introducing request caching
